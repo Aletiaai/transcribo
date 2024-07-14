@@ -15,6 +15,26 @@ if colab_url:
 # File uploader
 uploaded_file = st.file_uploader("Choose an audio file", type=['mp3', 'm4a'])
 
+def process_audio(uploaded_file, colab_url):
+    files = {'audio': (uploaded_file.name, uploaded_file, uploaded_file.type)}
+    try:
+        with requests.post(colab_url, files=files, stream=True) as response:
+            response.raise_for_status()
+            transcript = ""
+            progress_placeholder = st.empty()
+            for line in response.iter_lines():
+                if line:
+                    decoded_line = line.decode('utf-8')
+                    if decoded_line.startswith("FINAL_TRANSCRIPT:"):
+                        transcript = decoded_line[len("FINAL_TRANSCRIPT:"):]
+                        progress_placeholder.text("Processing complete!")
+                    else:
+                        progress_placeholder.text(decoded_line)
+            return transcript
+    except requests.exceptions.RequestException as e:
+        st.error(f"An error occurred while connecting to the backend: {str(e)}")
+        return None
+
 if uploaded_file is not None and colab_url:
     # Display file details
     file_details = {"FileName": uploaded_file.name, "FileType": uploaded_file.type, "FileSize": uploaded_file.size}
@@ -31,19 +51,11 @@ if uploaded_file is not None and colab_url:
             st.write(f"Backend connection test status code: {test_response.status_code}")
             st.write(f"Backend connection test response: {test_response.text}")
             
-            # Send file to Colab backend
-            st.write("Sending file to backend...")
-            files = {'audio': (uploaded_file.name, uploaded_file, uploaded_file.type)}
-            st.write(f"Sending POST request to: {colab_url}")
-            response = requests.post(colab_url, files=files)
+            # Process audio file
+            st.write("Sending file to backend for processing...")
+            transcript = process_audio(uploaded_file, colab_url)
             
-            st.write(f"Response status code: {response.status_code}")
-            st.write(f"Response headers: {response.headers}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                transcript = result['transcript']
-                
+            if transcript:
                 st.subheader("Transcription with Speaker Diarization:")
                 st.text_area("", transcript, height=300)
 
@@ -55,8 +67,7 @@ if uploaded_file is not None and colab_url:
                     mime="text/plain"
                 )
             else:
-                st.error(f"An error occurred during processing. Status code: {response.status_code}")
-                st.write(f"Response content: {response.text}")
+                st.error("An error occurred during processing. No transcript was returned.")
         except requests.exceptions.RequestException as e:
             st.error(f"An error occurred while connecting to the backend: {str(e)}")
 else:
