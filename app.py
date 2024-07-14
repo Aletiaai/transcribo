@@ -8,6 +8,10 @@ st.title("Audio Transcription and Diarization App")
 # Colab URL input
 colab_url = st.text_input("Enter the Colab backend URL:")
 
+# Display the entered URL
+if colab_url:
+    st.write(f"Entered URL: {colab_url}")
+
 # File uploader
 uploaded_file = st.file_uploader("Choose an audio file", type=['mp3', 'm4a'])
 
@@ -22,13 +26,16 @@ if uploaded_file is not None and colab_url:
         
         try:
             # Test connection to backend
+            st.write("Testing connection to backend...")
             test_response = requests.get(colab_url)
-            st.write(f"Backend connection test: {test_response.status_code}")
-            st.write(f"Backend response: {test_response.text}")
+            st.write(f"Backend connection test status code: {test_response.status_code}")
+            st.write(f"Backend connection test response: {test_response.text}")
             
             # Send file to Colab backend
+            st.write("Sending file to backend...")
             files = {'audio': (uploaded_file.name, uploaded_file, uploaded_file.type)}
-            response = requests.post(f'{colab_url}/transcribe', files=files)
+            st.write(f"Sending POST request to: {colab_url}")
+            response = requests.post(colab_url, files=files)
             
             st.write(f"Response status code: {response.status_code}")
             st.write(f"Response headers: {response.headers}")
