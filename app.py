@@ -3,13 +3,13 @@ import requests
 import os
 
 # Streamlit app title
-st.title("Audio Transcription and Diarization App")
+st.title("Transcripción de Audio")
 
 # Colab URL input
-colab_url = st.text_input("Enter the Colab backend URL:")
+colab_url = st.text_input("Ingresa la URL proveida por el admin:")
 
 # File uploader
-uploaded_file = st.file_uploader("Choose an audio file", type=['mp3', 'm4a'])
+uploaded_file = st.file_uploader("Selecciona un archivo de audio", type=['mp3', 'm4a'])
 
 if uploaded_file is not None and colab_url:
     # Display file details
@@ -17,8 +17,8 @@ if uploaded_file is not None and colab_url:
     st.write(file_details)
 
     # Transcription and diarization
-    if st.button("Transcribe and Diarize"):
-        st.info("Processing audio... This may take a few minutes.")
+    if st.button("Transcribir"):
+        st.info("Procesando audio... Esto puede tomar varios minutos.")
         
         try:
             # Send file to Colab backend
@@ -29,12 +29,12 @@ if uploaded_file is not None and colab_url:
                 result = response.json()
                 transcript = result['transcript']
                 
-                st.subheader("Transcription with Speaker Diarization:")
+                st.subheader("Transcripción con identificación de participantes:")
                 st.text_area("", transcript, height=300)
 
                 # Option to download the transcript
                 st.download_button(
-                    label="Download Transcript",
+                    label="Descarga la transcripción",
                     data=transcript,
                     file_name="transcript.txt",
                     mime="text/plain"
@@ -42,23 +42,23 @@ if uploaded_file is not None and colab_url:
             else:
                 st.error(f"An error occurred during processing. Status code: {response.status_code}")
         except requests.exceptions.RequestException as e:
-            st.error(f"An error occurred while connecting to the backend: {str(e)}")
+            st.error(f"An error occurred while connecting to the transcript engine: {str(e)}")
 else:
-    st.warning("Please enter the Colab backend URL and upload an audio file.")
+    st.warning("Por favor ingresa la la URL proveida por el admin y selecciona un archivo de audio.")
 
 # Instructions and additional information
-st.sidebar.header("Instructions")
+st.sidebar.header("Instrucciones")
 st.sidebar.info(
-    "1. Enter the Colab backend URL.\n"
-    "2. Upload an MP3 or M4A audio file.\n"
-    "3. Click 'Transcribe and Diarize' to process the audio.\n"
-    "4. View the transcription with speaker labels.\n"
-    "5. Download the transcript if desired."
+    "1. Ingresa la URL que te asigna el admin.\n"
+    "2. Subre un arcvhivo de audio MP3 o M4A.\n"
+    "3. Da click en 'Transcribir' para procesar el audio.\n"
+    "4. Revisa la transcripción.\n"
+    "5. Descarga la transcripción si así lo deseas."
 )
 
-st.sidebar.header("About")
+st.sidebar.header("Acerca de esta app")
 st.sidebar.info(
-    "This app transcribes audio and identifies different speakers. "
-    "It uses WhisperX for transcription and diarization. "
-    "The process may take a few minutes depending on the length of your audio file."
+    "Esta app transcribe audio e identifica a los diferentes participantes. "
+    "Usa un modelo de inteligencia Artificial para la transcripción. "
+    "El proceso toma aproximadamente 30 minutos para un archivo de audio de 1.5 horas."
 )
