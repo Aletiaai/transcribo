@@ -21,6 +21,11 @@ if uploaded_file is not None and colab_url:
         st.info("Processing audio... This may take a few minutes.")
         
         try:
+            # Test connection to backend
+            test_response = requests.get(colab_url)
+            st.write(f"Backend connection test: {test_response.status_code}")
+            st.write(f"Backend response: {test_response.text}")
+            
             # Send file to Colab backend
             files = {'audio': (uploaded_file.name, uploaded_file, uploaded_file.type)}
             response = requests.post(f'{colab_url}/transcribe', files=files)
