@@ -18,7 +18,7 @@ uploaded_file = st.file_uploader("Choose an audio file", type=['mp3', 'm4a'])
 def process_audio(uploaded_file, colab_url):
     files = {'audio': (uploaded_file.name, uploaded_file, uploaded_file.type)}
     try:
-        with requests.post(colab_url, files=files, stream=True) as response:
+        with requests.post(colab_url, files=files, stream=True, timeout=3600) as response:  # 1-hour timeout
             response.raise_for_status()
             transcript = ""
             progress_placeholder = st.empty()
@@ -47,7 +47,7 @@ if uploaded_file is not None and colab_url:
         try:
             # Test connection to backend
             st.write("Testing connection to backend...")
-            test_response = requests.get(colab_url)
+            test_response = requests.get(colab_url, timeout=10)  # 10-second timeout for the test
             st.write(f"Backend connection test status code: {test_response.status_code}")
             st.write(f"Backend connection test response: {test_response.text}")
             
