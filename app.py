@@ -1,87 +1,64 @@
-# Install required libraries
-!pip install git+https://github.com/m-bain/whisperx.git --upgrade
-!pip install pydub flask flask-cors
-
-# Import necessary libraries
-import whisperx
-import gc
-from pydub import AudioSegment
+import streamlit as st
+import requests
 import os
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import base64
-import io
 
-app = Flask(__name__)
-CORS(app)
+# Streamlit app title
+st.title("Audio Transcription and Diarization App")
 
-@app.route('/transcribe', methods=['POST'])
-def transcribe_audio():
-    # Get the audio file from the request
-    audio_file = request.files['audio']
-    
-    # Save the audio file temporarily
-    temp_audio_path = 'temp_audio'
-    audio_file.save(temp_audio_path)
-    
-    # Check the file format and convert if necessary
-    if audio_file.filename.endswith('.m4a'):
-        audio = AudioSegment.from_file(temp_audio_path, format='m4a')
-        audio.export('temp_audio.mp3', format='mp3')
-        temp_audio_path = 'temp_audio.mp3'
-    elif audio_file.filename.endswith('.mp3'):
-        # If it's already an MP3, we don't need to convert
-        pass
-    else:
-        return jsonify({'error': 'Unsupported file format. Please upload an MP3 or M4A file.'}), 400
-    
-    # Transcription
-    device = "cuda"
-    batch_size = 16
-    compute_type = "float16"
+# Colab URL input
+colab_url = st.text_input("Enter the Colab backend URL:")
 
-    try:
-        model = whisperx.load_model("large-v2", device, compute_type=compute_type)
-        audio = whisperx.load_audio(temp_audio_path)
-        result = model.transcribe(audio, batch_size=batch_size)
+# File uploader
+uploaded_file = st.file_uploader("Choose an audio file", type=['mp3', 'm4a'])
 
-        # Alignment
-        model_a, metadata = whisperx.load_align_model(language_code=result["language"], device=device)
-        result = whisperx.align(result["segments"], model_a, metadata, audio, device, return_char_alignments=False)
+if uploaded_file is not None and colab_url:
+    # Display file details
+    file_details = {"FileName": uploaded_file.name, "FileType": uploaded_file.type, "FileSize": uploaded_file.size}
+    st.write(file_details)
 
-        # Diarization
-        diarize_model = whisperx.DiarizationPipeline(use_auth_token=os.environ['HF_TOKEN'], device=device)
-        diarize_segments = diarize_model(audio)
-        result = whisperx.assign_word_speakers(diarize_segments, result)
+    # Transcription and diarization
+    if st.button("Transcribe and Diarize"):
+        st.info("Processing audio... This may take a few minutes.")
+        
+        try:
+            # Send file to Colab backend
+            files = {'audio': (uploaded_file.name, uploaded_file, uploaded_file.type)}
+            response = requests.post(f'{colab_url}/transcribe', files=files)
+            
+            if response.status_code == 200:
+                result = response.json()
+                transcript = result['transcript']
+                
+                st.subheader("Transcription with Speaker Diarization:")
+                st.text_area("", transcript, height=300)
 
-        # Process results
-        formatted_output = []
-        current_speaker = None
+                # Option to download the transcript
+                st.download_button(
+                    label="Download Transcript",
+                    data=transcript,
+                    file_name="transcript.txt",
+                    mime="text/plain"
+                )
+            else:
+                st.error(f"An error occurred during processing. Status code: {response.status_code}")
+        except requests.exceptions.RequestException as e:
+            st.error(f"An error occurred while connecting to the backend: {str(e)}")
+else:
+    st.warning("Please enter the Colab backend URL and upload an audio file.")
 
-        for segment in result['segments']:
-            segment_text = segment.get('text', '').strip()
-            speaker = segment.get('speaker', 'UNKNOWN')
+# Instructions and additional information
+st.sidebar.header("Instructions")
+st.sidebar.info(
+    "1. Enter the Colab backend URL.\n"
+    "2. Upload an MP3 or M4A audio file.\n"
+    "3. Click 'Transcribe and Diarize' to process the audio.\n"
+    "4. View the transcription with speaker labels.\n"
+    "5. Download the transcript if desired."
+)
 
-            if speaker != current_speaker:
-                formatted_output.append(f"\nSpeaker {speaker}:")
-                current_speaker = speaker
-
-            formatted_output.append(segment_text)
-
-        return jsonify({'transcript': '\n'.join(formatted_output)})
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-    finally:
-        # Clean up temporary files
-        if os.path.exists(temp_audio_path):
-            os.remove(temp_audio_path)
-        if os.path.exists('temp_audio.mp3'):
-            os.remove('temp_audio.mp3')
-
-# Run the Flask app
-from google.colab.output import eval_js
-print(eval_js("google.colab.kernel.proxyPort(5000)"))
-
-app.run(port=5000)
+st.sidebar.header("About")
+st.sidebar.info(
+    "This app transcribes audio and identifies different speakers. "
+    "It uses WhisperX for transcription and diarization. "
+    "The process may take a few minutes depending on the length of your audio file."
+)
