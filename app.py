@@ -22,14 +22,28 @@ def process_audio(uploaded_file, colab_url):
             response.raise_for_status()
             transcript = ""
             progress_placeholder = st.empty()
+            transcript_started = False
+            transcript_lines = []
+
             for line in response.iter_lines():
                 if line:
                     decoded_line = line.decode('utf-8')
-                    if decoded_line.startswith("FINAL_TRANSCRIPT:"):
-                        transcript = decoded_line[len("FINAL_TRANSCRIPT:"):]
-                        progress_placeholder.text("Processing complete!")
+                    st.write(f"Received line: {decoded_line}")  # Debug print
+
+                    if decoded_line == "FINAL_TRANSCRIPT_START":
+                        transcript_started = True
+                    elif decoded_line == "FINAL_TRANSCRIPT_END":
+                        transcript_started = False
+                        transcript = '\n'.join(transcript_lines)
+                    elif transcript_started:
+                        transcript_lines.append(decoded_line)
                     else:
                         progress_placeholder.text(decoded_line)
+
+            if not transcript:
+                st.error("No final transcript received from the backend.")
+            elif transcript.strip() == "Error occurred during processing":
+                st.error("An error occurred during processing on the backend.")
             return transcript
     except requests.exceptions.RequestException as e:
         st.error(f"An error occurred while connecting to the backend: {str(e)}")
@@ -54,6 +68,7 @@ if uploaded_file is not None and colab_url:
             # Process audio file
             st.write("Sending file to backend for processing...")
             transcript = process_audio(uploaded_file, colab_url)
+            st.write(f"Transcript received: {transcript[:100]}...")  # Print first 100 chars
             
             if transcript:
                 if transcript.strip() == "":
