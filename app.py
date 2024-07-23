@@ -56,8 +56,11 @@ if uploaded_file is not None and colab_url:
             transcript = process_audio(uploaded_file, colab_url)
             
             if transcript:
-                st.subheader("Transcription with Speaker Diarization:")
-                st.text_area("", transcript, height=300)
+                if transcript.strip() == "":
+                    st.error("Received an empty transcript from the backend.")
+                else:
+                    st.subheader("Transcription with Speaker Diarization:")
+                    st.text_area("", transcript, height=300)
 
                 # Option to download the transcript
                 st.download_button(
