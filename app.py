@@ -17,6 +17,8 @@ uploaded_file = st.file_uploader("Choose an audio file", type=['mp3', 'm4a'])
 
 def process_audio(uploaded_file, colab_url):
     files = {'audio': (uploaded_file.name, uploaded_file, uploaded_file.type)}
+    debug_info = []
+
     try:
         with requests.post(colab_url, files=files, stream=True, timeout=3600) as response:  # 1-hour timeout
             response.raise_for_status()
@@ -28,7 +30,7 @@ def process_audio(uploaded_file, colab_url):
             for line in response.iter_lines():
                 if line:
                     decoded_line = line.decode('utf-8')
-                    st.write(f"Received line: {decoded_line}")  # Debug print
+                    debug_info.append(f"Received line: {decoded_line}")  # Debug print
 
                     if decoded_line == "FINAL_TRANSCRIPT_START":
                         transcript_started = True
@@ -41,13 +43,12 @@ def process_audio(uploaded_file, colab_url):
                         progress_placeholder.text(decoded_line)
 
             if not transcript:
-                st.error("No final transcript received from the backend.")
+                debug_info.append("No final transcript received from the backend.")
             elif transcript.strip() == "Error occurred during processing":
-                st.error("An error occurred during processing on the backend.")
-            return transcript
+                debug_info.append("An error occurred during processing on the backend.")
+            return transcript, debug_info
     except requests.exceptions.RequestException as e:
-        st.error(f"An error occurred while connecting to the backend: {str(e)}")
-        return None
+        return None, [f"An error occurred while connecting to the backend: {str(e)}"]
 
 if uploaded_file is not None and colab_url:
     # Display file details
@@ -60,15 +61,19 @@ if uploaded_file is not None and colab_url:
         
         try:
             # Test connection to backend
-            st.write("Testing connection to backend...")
             test_response = requests.get(colab_url, timeout=10)  # 10-second timeout for the test
-            st.write(f"Backend connection test status code: {test_response.status_code}")
-            st.write(f"Backend connection test response: {test_response.text}")
             
             # Process audio file
-            st.write("Sending file to backend for processing...")
-            transcript = process_audio(uploaded_file, colab_url)
-            st.write(f"Transcript received: {transcript[:100]}...")  # Print first 100 chars
+            transcript, debug_info = process_audio(uploaded_file, colab_url)
+            
+            # Debug information in a collapsible section
+            with st.expander("Show Debug Information", expanded=False):
+                st.write("Testing connection to backend...")
+                st.write(f"Backend connection test status code: {test_response.status_code}")
+                st.write(f"Backend connection test response: {test_response.text}")
+                st.write("Sending file to backend for processing...")
+                for info in debug_info:
+                    st.text(info)
             
             if transcript:
                 if transcript.strip() == "":
