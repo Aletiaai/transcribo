@@ -10,7 +10,7 @@ colab_url = st.text_input("Ingresa la URL proporcionada por el admin:")
 
 # Display the entered URL
 if colab_url:
-    st.write(f"Ingresa la URL: {colab_url}")
+    st.write(f"URL ingresada: {colab_url}")
 
 # File uploader
 uploaded_file = st.file_uploader("Selecciona un archivo de audio", type=['mp3', 'm4a'])
