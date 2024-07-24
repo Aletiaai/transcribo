@@ -3,17 +3,17 @@ import requests
 import os
 
 # Streamlit app title
-st.title("Audio Transcription and Diarization App")
+st.title("Transcribo app by Aletia")
 
 # Colab URL input
-colab_url = st.text_input("Enter the Colab backend URL:")
+colab_url = st.text_input("Ingresa la URL proporcionada por el admin:")
 
 # Display the entered URL
 if colab_url:
-    st.write(f"Entered URL: {colab_url}")
+    st.write(f"Ingresa la URL: {colab_url}")
 
 # File uploader
-uploaded_file = st.file_uploader("Choose an audio file", type=['mp3', 'm4a'])
+uploaded_file = st.file_uploader("Selecciona un archivo de audio", type=['mp3', 'm4a'])
 
 def process_audio(uploaded_file, colab_url):
     files = {'audio': (uploaded_file.name, uploaded_file, uploaded_file.type)}
@@ -43,12 +43,12 @@ def process_audio(uploaded_file, colab_url):
                         progress_placeholder.text(decoded_line)
 
             if not transcript:
-                debug_info.append("No final transcript received from the backend.")
-            elif transcript.strip() == "Error occurred during processing":
-                debug_info.append("An error occurred during processing on the backend.")
+                debug_info.append("No se recibio la transcipción final del motor de procesamiento.")
+            elif transcript.strip() == "Ocurrio un error durante el proceso":
+                debug_info.append("Ocurrio un error durante el proceso en el backend.")
             return transcript, debug_info
     except requests.exceptions.RequestException as e:
-        return None, [f"An error occurred while connecting to the backend: {str(e)}"]
+        return None, [f"Ocurrio un error mientras se establecía la conexión con el backend: {str(e)}"]
 
 if uploaded_file is not None and colab_url:
     # Display file details
@@ -56,8 +56,8 @@ if uploaded_file is not None and colab_url:
     st.write(file_details)
 
     # Transcription and diarization
-    if st.button("Transcribe and Diarize"):
-        st.info("Processing audio... This may take a few minutes.")
+    if st.button("Transcribir"):
+        st.info("Procesando audio... Si el audio dura 1 hora o más, esto puede tardar más de 10 minutos.")
         
         try:
             # Test connection to backend
@@ -67,48 +67,47 @@ if uploaded_file is not None and colab_url:
             transcript, debug_info = process_audio(uploaded_file, colab_url)
             
             # Debug information in a collapsible section
-            with st.expander("Show Debug Information", expanded=False):
-                st.write("Testing connection to backend...")
-                st.write(f"Backend connection test status code: {test_response.status_code}")
-                st.write(f"Backend connection test response: {test_response.text}")
-                st.write("Sending file to backend for processing...")
+            with st.expander("Mostrar la información para el 'Debugging'", expanded=False):
+                st.write("Probando la conexión con el backend...")
+                st.write(f"Código de estatus de la prueba de conexión con el backend: {test_response.status_code}")
+                st.write(f"Respuesta a la prueba de conexión con el backend: {test_response.text}")
+                st.write("Enviando el archivo al motor de transcripción para su procesamiento...")
                 for info in debug_info:
                     st.text(info)
             
             if transcript:
                 if transcript.strip() == "":
-                    st.error("Received an empty transcript from the backend.")
+                    st.error("Se recibió un transcripción vacía del backend.")
                 else:
-                    st.subheader("Transcription with Speaker Diarization:")
+                    st.subheader("Transcripción con la identificación de participantes:")
                     st.text_area("", transcript, height=300)
 
                 # Option to download the transcript
                 st.download_button(
-                    label="Download Transcript",
+                    label="Descarga la transcripción",
                     data=transcript,
                     file_name="transcript.txt",
                     mime="text/plain"
                 )
             else:
-                st.error("An error occurred during processing. No transcript was returned.")
+                st.error("Ocurrio un error durante el proceso. No se regresó ningúna transcripción.")
         except requests.exceptions.RequestException as e:
-            st.error(f"An error occurred while connecting to the backend: {str(e)}")
+            st.error(f"Ocurrio un error mientras se establecía la conexión con el backend: {str(e)}")
 else:
-    st.warning("Please enter the Colab backend URL and upload an audio file.")
+    st.warning("Por favor ingresa la URL proveída por el admin y sube un archivo de audio.")
 
 # Instructions and additional information
-st.sidebar.header("Instructions")
+st.sidebar.header("Instrucciones")
 st.sidebar.info(
-    "1. Enter the Colab backend URL.\n"
-    "2. Upload an MP3 or M4A audio file.\n"
-    "3. Click 'Transcribe and Diarize' to process the audio.\n"
-    "4. View the transcription with speaker labels.\n"
-    "5. Download the transcript if desired."
+    "1. Ingresa la URL proporcionada por el admin.\n"
+    "2. Sube un archivo de audio MP3 or M4A.\n"
+    "3. Da Clic en 'Transcribir' para procesar el audio.\n"
+    "4. Consulta la transcripción en la ventana.\n"
+    "5. Descarga la transcripción."
 )
 
-st.sidebar.header("About")
+st.sidebar.header("Acerca de")
 st.sidebar.info(
-    "This app transcribes audio and identifies different speakers. "
-    "It uses WhisperX for transcription and diarization. "
-    "The process may take a few minutes depending on the length of your audio file."
+    "Esta aplicación transcribe archivos de audio m4a o mp3 identificando a los diferentes participantes en el audio. "
+    "El proceso Puede tomar más de 10 minutos dependiendo de la extensión de tu archivo de audio."
 )
