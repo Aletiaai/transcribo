@@ -72,55 +72,67 @@ with tab2:
                             value=st.session_state.get('selected_job_id', ''))
     
     if job_id and colab_url:
+        # Ensure URL has trailing slash
+        if not colab_url.endswith('/'):
+            colab_url = colab_url + '/'
+            
         if st.button("Verificar Estado"):
             try:
-                response = requests.get(f"{colab_url}/status/{job_id}")
+                response = requests.get(f"{colab_url}status/{job_id}")
                 
                 if response.status_code == 200:
                     status_data = response.json()
                     status = status_data["status"]
                     
+                    # Store status in session state for use outside this button
+                    st.session_state.job_status = status
+                    st.session_state.job_filename = status_data.get('filename', 'unknown')
+                    st.session_state.job_message = status_data.get('message', '')
+                    
                     if status == "processing" or status == "queued":
                         st.info(f"El archivo {status_data['filename']} aún está siendo procesado. Por favor, verifica más tarde.")
-                        st.text(f"Mensaje: {status_data.get('message', 'En proceso')}")
+                        st.text(f"Mensaje: {st.session_state.job_message}")
                     
                     elif status == "complete":
                         st.success(f"¡El procesamiento de {status_data['filename']} está completo!")
-                        
-                        # Show download button
-                        if st.button("Descargar Transcripción"):
-                            try:
-                                # Direct download approach
-                                result_response = requests.get(f"{colab_url}/result/{job_id}")
-                                
-                                if result_response.status_code == 200:
-                                    # Create download link
-                                    json_data = result_response.json()
-                                    
-                                    # Option 1: Display the content
-                                    st.json(json_data)
-                                    
-                                    # Option 2: Create downloadable content
-                                    json_str = json.dumps(json_data, indent=2, ensure_ascii=False)
-                                    st.download_button(
-                                        label="Guardar transcripción como JSON",
-                                        data=json_str.encode('utf-8'),
-                                        file_name=f"transcripcion_{status_data['filename']}.json",
-                                        mime="application/json"
-                                    )
-                                else:
-                                    st.error(f"Error al obtener resultado: {result_response.text}")
-                            except Exception as e:
-                                st.error(f"Error al descargar: {str(e)}")
                     
                     elif status == "error":
-                        st.error(f"Ocurrió un error durante el procesamiento: {status_data.get('message', 'Error desconocido')}")
+                        st.error(f"Ocurrió un error durante el procesamiento: {st.session_state.job_message}")
                 
                 else:
                     st.error(f"Error al verificar estado: {response.text}")
             
             except Exception as e:
                 st.error(f"Error: {str(e)}")
+        
+        # Put download functionality outside the Verificar Estado button
+        if 'job_status' in st.session_state and st.session_state.job_status == "complete":
+            if st.button("Descargar Transcripción"):
+                try:
+                    # Ensure URL has trailing slash
+                    if not colab_url.endswith('/'):
+                        colab_url = colab_url + '/'
+                        
+                    result_response = requests.get(f"{colab_url}result/{job_id}")
+                    
+                    if result_response.status_code == 200:
+                        json_data = result_response.json()
+                        
+                        # Display the content
+                        st.json(json_data)
+                        
+                        # Create downloadable content
+                        json_str = json.dumps(json_data, indent=2, ensure_ascii=False)
+                        st.download_button(
+                            label="Guardar transcripción como JSON",
+                            data=json_str.encode('utf-8'),
+                            file_name=f"transcripcion_{st.session_state.job_filename}.json",
+                            mime="application/json"
+                        )
+                    else:
+                        st.error(f"Error al obtener resultado: {result_response.text}")
+                except Exception as e:
+                    st.error(f"Error al descargar: {str(e)}")
 
 # Add instructions in sidebar
 st.sidebar.header("Instrucciones")
