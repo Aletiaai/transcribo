@@ -4,6 +4,37 @@ import json
 import time
 import io
 
+def json_to_text(json_data):
+    """Convert transcription JSON to formatted text file for Word/Google Docs"""
+    text_content = "TRANSCRIPCIÓN\n\n"
+    
+    # Check if the expected structure exists
+    if "segments" in json_data:
+        for segment in json_data["segments"]:
+            # Format: [HH:MM:SS] Speaker: Text
+            start_time = format_time(segment.get("start", 0))
+            speaker = segment.get("speaker", "")
+            text = segment.get("text", "")
+            
+            # Add formatted line
+            if speaker:
+                text_content += f"[{start_time}] SPEAKER {speaker}: {text}\n\n"
+            else:
+                text_content += f"[{start_time}] {text}\n\n"
+    else:
+        # Fallback if JSON structure is different
+        text_content += "No se pudo formatear la transcripción. Estructura JSON inesperada.\n\n"
+        text_content += json.dumps(json_data, indent=2, ensure_ascii=False)
+    
+    return text_content
+
+def format_time(seconds):
+    """Format seconds to HH:MM:SS"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = int(seconds % 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
 st.title("Transcribo by Aletia")
 
 # Colab URL input
@@ -25,12 +56,16 @@ with tab1:
         
         if st.button("Iniciar Procesamiento"):
             try:
+                # Ensure URL has trailing slash
+                if not colab_url.endswith('/'):
+                    colab_url = colab_url + '/'
+                
                 # Test connection to backend
                 test_response = requests.get(colab_url, timeout=10)
                 
                 # Upload file
                 files = {'audio': (uploaded_file.name, uploaded_file, uploaded_file.type)}
-                response = requests.post(f"{colab_url}/upload", files=files)
+                response = requests.post(f"{colab_url}upload", files=files)
                 
                 if response.status_code == 200:
                     job_data = response.json()
@@ -118,17 +153,35 @@ with tab2:
                     if result_response.status_code == 200:
                         json_data = result_response.json()
                         
-                        # Display the content
-                        st.json(json_data)
+                        # Create text version for Word/Google Docs
+                        text_content = json_to_text(json_data)
                         
-                        # Create downloadable content
-                        json_str = json.dumps(json_data, indent=2, ensure_ascii=False)
-                        st.download_button(
-                            label="Guardar transcripción como JSON",
-                            data=json_str.encode('utf-8'),
-                            file_name=f"transcripcion_{st.session_state.job_filename}.json",
-                            mime="application/json"
-                        )
+                        # Create columns for download options
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            # Download as JSON
+                            json_str = json.dumps(json_data, indent=2, ensure_ascii=False)
+                            st.download_button(
+                                label="Descargar como JSON",
+                                data=json_str.encode('utf-8'),
+                                file_name=f"transcripcion_{st.session_state.job_filename}.json",
+                                mime="application/json"
+                            )
+                        
+                        with col2:
+                            # Download as Text (compatible with Word/Google Docs)
+                            st.download_button(
+                                label="Descargar como Texto (Word/Google Docs)",
+                                data=text_content.encode('utf-8'),
+                                file_name=f"transcripcion_{st.session_state.job_filename}.txt",
+                                mime="text/plain"
+                            )
+                        
+                        # Show preview of text content
+                        with st.expander("Vista previa de la transcripción"):
+                            st.text(text_content)
+                            
                     else:
                         st.error(f"Error al obtener resultado: {result_response.text}")
                 except Exception as e:
