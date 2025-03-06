@@ -4,7 +4,7 @@ import requests
 import json
 import time
 
-st.title("Transcribo app by Aletia")
+st.title("Transcribo by Aletia")
 
 # Colab URL input
 colab_url = st.text_input("Ingresa la URL proporcionada por el admin:")
