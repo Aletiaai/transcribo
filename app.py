@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import os
+import time
 
 # Streamlit app title
 st.title("Transcribo app by Aletia")
@@ -20,20 +21,27 @@ def process_audio(uploaded_file, colab_url):
     debug_info = []
 
     try:
-        with requests.post(colab_url, files=files, stream=True, timeout=3600) as response:  # 1-hour timeout
+        with requests.post(colab_url, files=files, stream=True, timeout=7200, headers={'Connection': 'keep-alive'}) as response:  # 2-hours timeout
             response.raise_for_status()
             transcript = ""
             progress_placeholder = st.empty()
+            status_placeholder = st.empty()
             transcript_started = False
             transcript_lines = []
+            last_update_time = time.time()
 
             for line in response.iter_lines():
+                # Reset the "no update" timer
+                current_time = time.time()
+                last_update_time = current_time
+
                 if line:
                     decoded_line = line.decode('utf-8')
                     debug_info.append(f"Received line: {decoded_line}")  # Debug print
 
                     if decoded_line == "FINAL_TRANSCRIPT_START":
                         transcript_started = True
+                        status_placeholder.info("Recibiendo transcripción final...")
                     elif decoded_line == "FINAL_TRANSCRIPT_END":
                         transcript_started = False
                         transcript = '\n'.join(transcript_lines)
@@ -41,29 +49,53 @@ def process_audio(uploaded_file, colab_url):
                         transcript_lines.append(decoded_line)
                     else:
                         progress_placeholder.text(decoded_line)
+                        status_placeholder.info(f"Procesando... {decoded_line}")
 
             if not transcript:
                 debug_info.append("No se recibio la transcipción final del motor de procesamiento.")
             elif transcript.strip() == "Ocurrio un error durante el proceso":
                 debug_info.append("Ocurrio un error durante el proceso en el backend.")
             return transcript, debug_info
+
+    except requests.exceptions.Timeout:
+        return None, ["El procesamiento está tomando demasiado tiempo. La conexión expiró. Intenta con un archivo más corto o contacta al administrador."]
+    except requests.exceptions.ConnectionError:
+        return None, ["Se perdió la conexión con el backend. Esto sucede frecuentemente con archivos muy grandes. Intenta con un archivo más corto o contacta al administrador."]
     except requests.exceptions.RequestException as e:
-        return None, [f"Ocurrio un error mientras se establecía la conexión con el backend: {str(e)}"]
+        return None, [f"Ocurrió un error mientras se establecía la conexión con el backend: {str(e)}"]
+
 
 if uploaded_file is not None and colab_url:
     # Display file details
     file_details = {"FileName": uploaded_file.name, "FileType": uploaded_file.type, "FileSize": uploaded_file.size}
     st.write(file_details)
 
+    # Calculate and display estimated processing time
+    file_size_mb = uploaded_file.size / (1024 * 1024)  # Convert to MB
+    estimated_minutes = max(10, int(file_size_mb / 5))  # Rough estimate: 5MB per minute
+    
+    st.info(f"Tamaño del archivo: {file_size_mb:.1f} MB. Tiempo estimado de procesamiento: {estimated_minutes} minutos.")
+    st.warning("Nota: Los archivos mayores a 100 MB (aproximadamente 1 hora) pueden causar problemas. Se recomienda dividir archivos largos en segmentos más pequeños.")
+
     # Transcription and diarization
     if st.button("Transcribir"):
-        st.info("Procesando audio... Si el audio dura 1 hora o más, esto puede tardar más de 10 minutos.")
+        st.info(f"Procesando audio... ETA: {estimated_minutes} minutos. Por favor, no cierres esta ventana.")
+        progress_bar = st.progress(0)
+
+        # Create a placeholder for status updates
+        status = st.empty()
         
         try:
             # Test connection to backend
-            test_response = requests.get(colab_url, timeout=10)  # 10-second timeout for the test
+            try:
+                test_response = requests.get(colab_url, timeout=10)
+                status.success(f"Conexión con el backend establecida. Código: {test_response.status_code}")
+            except requests.exceptions.RequestException as e:
+                st.error(f"No se pudo conectar con el backend: {str(e)}")
+                st.stop()
             
             # Process audio file
+            status.info("Enviando archivo al backend. Esto puede tomar varios minutos para archivos grandes...")
             transcript, debug_info = process_audio(uploaded_file, colab_url)
             
             # Debug information in a collapsible section
@@ -77,8 +109,9 @@ if uploaded_file is not None and colab_url:
             
             if transcript:
                 if transcript.strip() == "":
-                    st.error("Se recibió un transcripción vacía del backend.")
+                    st.error("Se recibió una transcripción vacía del backend.")
                 else:
+                    st.success("¡Transcripción completada!")
                     st.subheader("Transcripción con la identificación de participantes:")
                     st.text_area("", transcript, height=300)
 
@@ -90,9 +123,9 @@ if uploaded_file is not None and colab_url:
                     mime="text/plain"
                 )
             else:
-                st.error("Ocurrio un error durante el proceso. No se regresó ningúna transcripción.")
-        except requests.exceptions.RequestException as e:
-            st.error(f"Ocurrio un error mientras se establecía la conexión con el backend: {str(e)}")
+                st.error("Ocurrió un error durante el proceso. No se regresó ninguna transcripción.")
+        except Exception as e:
+            st.error(f"Error inesperado: {str(e)}")
 else:
     st.warning("Por favor ingresa la URL proveída por el admin y sube un archivo de audio.")
 
