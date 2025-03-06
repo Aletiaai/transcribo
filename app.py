@@ -1,8 +1,8 @@
-# FRONTEND CODE (STREAMLIT)
 import streamlit as st
 import requests
 import json
 import time
+import io
 
 st.title("Transcribo by Aletia")
 
@@ -68,8 +68,8 @@ with tab2:
             if st.button(f"{job['filename']} ({job['timestamp']})"):
                 st.session_state.selected_job_id = job['id']
     
-    job_id = st.text_input("O ingresa el ID del trabajo:", 
-                           value=st.session_state.get('selected_job_id', ''))
+    job_id = st.text_input("O ingresa el ID del trabajo:",
+                            value=st.session_state.get('selected_job_id', ''))
     
     if job_id and colab_url:
         if st.button("Verificar Estado"):
@@ -80,19 +80,41 @@ with tab2:
                     status_data = response.json()
                     status = status_data["status"]
                     
-                    if status == "processing":
+                    if status == "processing" or status == "queued":
                         st.info(f"El archivo {status_data['filename']} aún está siendo procesado. Por favor, verifica más tarde.")
+                        st.text(f"Mensaje: {status_data.get('message', 'En proceso')}")
                     
                     elif status == "complete":
                         st.success(f"¡El procesamiento de {status_data['filename']} está completo!")
                         
-                        # Add button to download result
+                        # Show download button
                         if st.button("Descargar Transcripción"):
-                            result_url = f"{colab_url}/result/{job_id}"
-                            st.markdown(f"[Haz clic aquí para descargar la transcripción]({result_url})")
+                            try:
+                                # Direct download approach
+                                result_response = requests.get(f"{colab_url}/result/{job_id}")
+                                
+                                if result_response.status_code == 200:
+                                    # Create download link
+                                    json_data = result_response.json()
+                                    
+                                    # Option 1: Display the content
+                                    st.json(json_data)
+                                    
+                                    # Option 2: Create downloadable content
+                                    json_str = json.dumps(json_data, indent=2, ensure_ascii=False)
+                                    st.download_button(
+                                        label="Guardar transcripción como JSON",
+                                        data=json_str.encode('utf-8'),
+                                        file_name=f"transcripcion_{status_data['filename']}.json",
+                                        mime="application/json"
+                                    )
+                                else:
+                                    st.error(f"Error al obtener resultado: {result_response.text}")
+                            except Exception as e:
+                                st.error(f"Error al descargar: {str(e)}")
                     
                     elif status == "error":
-                        st.error(f"Ocurrió un error durante el procesamiento. Por favor, intenta nuevamente o contacta al administrador.")
+                        st.error(f"Ocurrió un error durante el procesamiento: {status_data.get('message', 'Error desconocido')}")
                 
                 else:
                     st.error(f"Error al verificar estado: {response.text}")
